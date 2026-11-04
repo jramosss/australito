@@ -56,12 +56,4 @@ public class ConexionDB {
             return false;
         }
     }
-
-    public static void configurar(String nuevoHost, String nuevoPort, String nuevaBase, String nuevoUsuario, String nuevaClave) {
-        if (nuevoHost != null) host = nuevoHost;
-        if (nuevoPort != null) port = nuevoPort;
-        if (nuevaBase != null) database = nuevaBase;
-        if (nuevoUsuario != null) user = nuevoUsuario;
-        if (nuevaClave != null) password = nuevaClave;
-    }
 }

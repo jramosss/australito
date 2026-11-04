@@ -25,20 +25,6 @@ public class CategoriaDAO {
         return lista;
     }
 
-    public Categoria buscarPorId(Long id) throws SQLException {
-        String sql = "SELECT id_categoria, nombre, activo FROM CATEGORIAS WHERE id_categoria = ?";
-        try (Connection conn = ConexionDB.obtenerConexion();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapear(rs);
-                }
-            }
-        }
-        return null;
-    }
-
     private Categoria mapear(ResultSet rs) throws SQLException {
         Long id = rs.getLong("id_categoria");
         String nombre = rs.getString("nombre");

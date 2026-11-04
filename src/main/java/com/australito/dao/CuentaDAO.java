@@ -25,20 +25,6 @@ public class CuentaDAO {
         return lista;
     }
 
-    public Cuenta buscarPorId(Long id) throws SQLException {
-        String sql = "SELECT id_cuenta, denominacion, tipo FROM CUENTAS WHERE id_cuenta = ?";
-        try (Connection conn = ConexionDB.obtenerConexion();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapear(rs);
-                }
-            }
-        }
-        return null;
-    }
-
     private Cuenta mapear(ResultSet rs) throws SQLException {
         Long id = rs.getLong("id_cuenta");
         String denominacion = rs.getString("denominacion");

@@ -62,32 +62,6 @@ public class ExportadorArchivoService {
         }
     }
 
-    public File exportarResumenRubrosCSV(Map<String, java.math.BigDecimal> resumen, File archivoDestino) throws AustralitoException {
-        if (archivoDestino == null) {
-            archivoDestino = new File("resumen_rubros_" + LocalDate.now().format(FORMATO_FECHA) + ".csv");
-        }
-
-        try (BufferedWriter writer = new BufferedWriter(
-                new OutputStreamWriter(new FileOutputStream(archivoDestino), StandardCharsets.UTF_8))) {
-
-            writer.write("Rubro,Total_ARS");
-            writer.newLine();
-
-            if (resumen != null) {
-                for (Map.Entry<String, java.math.BigDecimal> entry : resumen.entrySet()) {
-                    String rubro = escapar(entry.getKey());
-                    String total = (entry.getValue() != null) ? entry.getValue().toPlainString() : "0.00";
-                    writer.write(rubro + SEPARADOR + total);
-                    writer.newLine();
-                }
-            }
-            writer.flush();
-            return archivoDestino;
-        } catch (IOException e) {
-            throw new AustralitoException("Error al exportar el resumen por rubros: " + e.getMessage(), e);
-        }
-    }
-
     private String escapar(String valor) {
         if (valor == null) return "";
         if (valor.contains(",") || valor.contains("\"") || valor.contains("\n")) {

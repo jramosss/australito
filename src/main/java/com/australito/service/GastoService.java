@@ -261,18 +261,6 @@ public class GastoService {
         return resultado;
     }
 
-    public List<Gasto> buscarGastosPorRangoFecha(LocalDate inicio, LocalDate fin) {
-        List<Gasto> resultado = new ArrayList<>();
-        for (Gasto g : listarGastos()) {
-            boolean despuesOIgual = (inicio == null) || !g.getFecha().isBefore(inicio);
-            boolean antesOIgual = (fin == null) || !g.getFecha().isAfter(fin);
-            if (despuesOIgual && antesOIgual) {
-                resultado.add(g);
-            }
-        }
-        return resultado;
-    }
-
     public BigDecimal calcularBalanceTotalARS() {
         BigDecimal balance = BigDecimal.ZERO;
         for (Transaccion t : transacciones) {
@@ -305,10 +293,6 @@ public class GastoService {
             resumen.put(cat, actual.add(g.getMonto()));
         }
         return resumen;
-    }
-
-    public List<Transaccion> getTransacciones() {
-        return Collections.unmodifiableList(transacciones);
     }
 
     public List<Cuenta> getCuentas() {

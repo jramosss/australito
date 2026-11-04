@@ -47,20 +47,6 @@ public class CotizacionDAO {
         return null;
     }
 
-    public Cotizacion buscarPorId(Long id) throws SQLException {
-        String sql = "SELECT id_cotizacion, valor_compra, valor_venta, fecha_hora FROM COTIZACION_HISTORICA WHERE id_cotizacion = ?";
-        try (Connection conn = ConexionDB.obtenerConexion();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapear(rs);
-                }
-            }
-        }
-        return null;
-    }
-
     private Cotizacion mapear(ResultSet rs) throws SQLException {
         Long id = rs.getLong("id_cotizacion");
         BigDecimal compra = rs.getBigDecimal("valor_compra");

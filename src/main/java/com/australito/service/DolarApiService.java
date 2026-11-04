@@ -97,12 +97,4 @@ public class DolarApiService implements ConversionService {
         }
         return montoARS.divide(cotizacion.getTasaVentaEfectiva(), 2, RoundingMode.HALF_EVEN);
     }
-
-    public Cotizacion getUltimaCotizacionEnCache() {
-        return ultimaCotizacionEnCache;
-    }
-
-    public void setUltimaCotizacionEnCache(Cotizacion cotizacion) {
-        this.ultimaCotizacionEnCache = cotizacion;
-    }
 }
