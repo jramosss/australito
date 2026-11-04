@@ -1,5 +1,9 @@
 package com.australito.service;
 
+import com.australito.dao.CategoriaDAO;
+import com.australito.dao.CotizacionDAO;
+import com.australito.dao.CuentaDAO;
+import com.australito.dao.GastoDAO;
 import com.australito.exception.AustralitoException;
 import com.australito.exception.SaldoInsuficienteException;
 import com.australito.exception.ValidacionException;
@@ -11,6 +15,7 @@ import com.australito.model.Ingreso;
 import com.australito.model.Transaccion;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,10 +29,23 @@ public class GastoService {
     private final List<Cuenta> cuentas;
     private final List<Categoria> categorias;
     private final ConversionService conversionService;
+    private final GastoDAO gastoDAO;
+    private final CuentaDAO cuentaDAO;
+    private final CategoriaDAO categoriaDAO;
+    private final CotizacionDAO cotizacionDAO;
     private long secuenciadorId;
 
     public GastoService(ConversionService conversionService) {
+        this(conversionService, new GastoDAO(), new CuentaDAO(), new CategoriaDAO(), new CotizacionDAO());
+    }
+
+    public GastoService(ConversionService conversionService, GastoDAO gastoDAO, CuentaDAO cuentaDAO,
+                        CategoriaDAO categoriaDAO, CotizacionDAO cotizacionDAO) {
         this.conversionService = conversionService;
+        this.gastoDAO = gastoDAO;
+        this.cuentaDAO = cuentaDAO;
+        this.categoriaDAO = categoriaDAO;
+        this.cotizacionDAO = cotizacionDAO;
         this.transacciones = new ArrayList<>();
         this.cuentas = new ArrayList<>();
         this.categorias = new ArrayList<>();
@@ -36,17 +54,39 @@ public class GastoService {
     }
 
     private void cargarDatosIniciales() {
-        // Cuentas predeterminadas
-        cuentas.add(new Cuenta(1L, "Caja de Ahorro Santander", "Bancaria", new BigDecimal("350000.00")));
-        cuentas.add(new Cuenta(2L, "Billetera Mercado Pago", "Virtual", new BigDecimal("120000.00")));
-        cuentas.add(new Cuenta(3L, "Efectivo Billetera", "Efectivo", new BigDecimal("45000.00")));
+        boolean cargadoDesdeBD = false;
+        if (cuentaDAO != null && categoriaDAO != null && gastoDAO != null) {
+            try {
+                List<Cuenta> ctasBD = cuentaDAO.listarTodas();
+                List<Categoria> catsBD = categoriaDAO.listarTodas();
+                if (!ctasBD.isEmpty() && !catsBD.isEmpty()) {
+                    cuentas.addAll(ctasBD);
+                    categorias.addAll(catsBD);
+                    cargadoDesdeBD = true;
 
-        // Categorías predeterminadas
-        categorias.add(new Categoria(1L, "Supermercado y Alimentos", new BigDecimal("180000.00")));
-        categorias.add(new Categoria(2L, "Transporte y Movilidad", new BigDecimal("40000.00")));
-        categorias.add(new Categoria(3L, "Servicios e Internet", new BigDecimal("65000.00")));
-        categorias.add(new Categoria(4L, "Salidas y Gastos Hormiga", new BigDecimal("50000.00")));
-        categorias.add(new Categoria(5L, "Salud y Farmacia", new BigDecimal("30000.00")));
+                    List<Gasto> gastosBD = gastoDAO.listarTodos();
+                    for (Gasto g : gastosBD) {
+                        transacciones.add(g);
+                        if (g.getId() != null && g.getId() >= secuenciadorId) {
+                            secuenciadorId = g.getId() + 1;
+                        }
+                    }
+                }
+            } catch (SQLException ignored) {
+            }
+        }
+
+        if (!cargadoDesdeBD) {
+            cuentas.add(new Cuenta(1L, "Caja de Ahorro Santander", "Bancaria", new BigDecimal("350000.00")));
+            cuentas.add(new Cuenta(2L, "Billetera Mercado Pago", "Virtual", new BigDecimal("120000.00")));
+            cuentas.add(new Cuenta(3L, "Efectivo Billetera", "Efectivo", new BigDecimal("45000.00")));
+
+            categorias.add(new Categoria(1L, "Supermercado y Alimentos", new BigDecimal("180000.00")));
+            categorias.add(new Categoria(2L, "Transporte y Movilidad", new BigDecimal("40000.00")));
+            categorias.add(new Categoria(3L, "Servicios e Internet", new BigDecimal("65000.00")));
+            categorias.add(new Categoria(4L, "Salidas y Gastos Hormiga", new BigDecimal("50000.00")));
+            categorias.add(new Categoria(5L, "Salud y Farmacia", new BigDecimal("30000.00")));
+        }
     }
 
     public Gasto registrarGasto(String descripcion, BigDecimal montoARS, LocalDate fecha,
@@ -63,7 +103,8 @@ public class GastoService {
         if (cuenta == null) {
             throw new ValidacionException("Debe seleccionar una cuenta de débito");
         }
-        if (cuenta.getSaldoActual().compareTo(montoARS) < 0) {
+        if (cuenta.getSaldoActual() != null && cuenta.getSaldoActual().compareTo(BigDecimal.ZERO) > 0
+                && cuenta.getSaldoActual().compareTo(montoARS) < 0) {
             throw new SaldoInsuficienteException(String.format(
                     "Saldo insuficiente en la cuenta '%s'. Saldo disponible: $%s, Monto requerido: $%s",
                     cuenta.getNombre(), cuenta.getSaldoActual(), montoARS));
@@ -71,7 +112,30 @@ public class GastoService {
 
         Cotizacion cotizacion = conversionService.obtenerCotizacionBlue();
 
-        Gasto gasto = new Gasto(secuenciadorId++, fecha, descripcion.trim(), montoARS, categoria, cuenta, cotizacion);
+        // En caso de persistencia relacional activa, se asegura el snapshot histórico en base de datos
+        try {
+            if (cotizacionDAO != null && (cotizacion.getId() == null || cotizacion.getId() <= 0)) {
+                Long idCot = cotizacionDAO.guardar(cotizacion);
+                if (idCot != null) {
+                    cotizacion.setId(idCot);
+                }
+            }
+        } catch (SQLException ignored) {
+        }
+
+        long idAsignado = secuenciadorId++;
+        Gasto gasto = new Gasto(idAsignado, fecha, descripcion.trim(), montoARS, categoria, cuenta, cotizacion);
+
+        try {
+            if (gastoDAO != null) {
+                Long idGastoBD = gastoDAO.insertar(gasto);
+                if (idGastoBD != null) {
+                    gasto.setId(idGastoBD);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[AVISO] No se pudo persistir el gasto en MySQL: " + e.getMessage());
+        }
 
         cuenta.debitar(montoARS);
         transacciones.add(gasto);
@@ -94,6 +158,55 @@ public class GastoService {
         cuenta.acreditar(montoARS);
         transacciones.add(ingreso);
         return ingreso;
+    }
+
+    public boolean eliminarGasto(Long idGasto) throws AustralitoException {
+        if (idGasto == null) return false;
+        try {
+            if (gastoDAO != null) {
+                gastoDAO.eliminar(idGasto);
+            }
+        } catch (SQLException ignored) {
+        }
+
+        return transacciones.removeIf(t -> t instanceof Gasto && t.getId().equals(idGasto));
+    }
+
+    public boolean actualizarGasto(Gasto gastoActualizado) throws AustralitoException {
+        if (gastoActualizado == null || gastoActualizado.getId() == null) {
+            throw new ValidacionException("El gasto a actualizar debe tener un identificador válido");
+        }
+        if (gastoActualizado.getDescripcion() == null || gastoActualizado.getDescripcion().trim().isEmpty()) {
+            throw new ValidacionException("La descripción del gasto no puede estar vacía");
+        }
+        if (gastoActualizado.getMonto() == null || gastoActualizado.getMonto().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ValidacionException("El monto del gasto debe ser mayor a cero");
+        }
+        if (gastoActualizado.getCategoria() == null) {
+            throw new ValidacionException("Debe asignar una categoría al gasto");
+        }
+        if (gastoActualizado.getCuenta() == null) {
+            throw new ValidacionException("Debe asignar una cuenta de origen de fondos");
+        }
+
+        gastoActualizado.calcularMontoUSD();
+
+        try {
+            if (gastoDAO != null) {
+                gastoDAO.actualizar(gastoActualizado);
+            }
+        } catch (SQLException e) {
+            System.err.println("[AVISO] No se pudo actualizar el gasto en MySQL: " + e.getMessage());
+        }
+
+        for (int i = 0; i < transacciones.size(); i++) {
+            Transaccion t = transacciones.get(i);
+            if (t instanceof Gasto && t.getId().equals(gastoActualizado.getId())) {
+                transacciones.set(i, gastoActualizado);
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<Gasto> listarGastos() {

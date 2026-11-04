@@ -1,5 +1,6 @@
 package com.australito.service;
 
+import com.australito.dao.CotizacionDAO;
 import com.australito.exception.CotizacionNoDisponibleException;
 import com.australito.exception.ValidacionException;
 import com.australito.model.Cotizacion;
@@ -18,13 +19,18 @@ public class DolarApiService implements ConversionService {
     private static final String API_URL = "https://dolarapi.com/v1/dolares/blue";
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
     private final HttpClient httpClient;
+    private final CotizacionDAO cotizacionDAO;
     private Cotizacion ultimaCotizacionEnCache;
 
     public DolarApiService() {
+        this(new CotizacionDAO());
+    }
+
+    public DolarApiService(CotizacionDAO cotizacionDAO) {
+        this.cotizacionDAO = cotizacionDAO;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(TIMEOUT)
                 .build();
-        // Cotización de contingencia inicial en caso de arranque offline
         this.ultimaCotizacionEnCache = new Cotizacion(1L, new BigDecimal("1280.00"), new BigDecimal("1310.00"), "Cache Local Contingencia");
     }
 
@@ -45,16 +51,35 @@ public class DolarApiService implements ConversionService {
                 BigDecimal compra = json.get("compra").getAsBigDecimal();
                 BigDecimal venta = json.get("venta").getAsBigDecimal();
 
-                Cotizacion cotizacion = new Cotizacion(System.currentTimeMillis(), compra, venta, "DolarAPI Oficial");
+                Cotizacion cotizacion = new Cotizacion(null, compra, venta, "DolarAPI Oficial");
+                if (cotizacionDAO != null) {
+                    try {
+                        Long idCot = cotizacionDAO.guardar(cotizacion);
+                        if (idCot != null) {
+                            cotizacion.setId(idCot);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
                 this.ultimaCotizacionEnCache = cotizacion;
                 return cotizacion;
             } else {
                 throw new CotizacionNoDisponibleException("Respuesta HTTP no satisfactoria: " + response.statusCode());
             }
         } catch (Exception e) {
-            // Modo degradado: Si falla la red, se utiliza la última cotización válida registrada
+            // Modo degradado: si falla la API externa, se busca la última cotización persistida en MySQL
+            try {
+                if (cotizacionDAO != null) {
+                    Cotizacion persistida = cotizacionDAO.obtenerUltima();
+                    if (persistida != null) {
+                        this.ultimaCotizacionEnCache = persistida;
+                        return persistida;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+
             if (ultimaCotizacionEnCache != null) {
-                System.err.println("[AVISO] Falla al conectar con DolarAPI (" + e.getMessage() + "). Utilizando cotización de contingencia.");
                 return ultimaCotizacionEnCache;
             }
             throw new CotizacionNoDisponibleException("No fue posible obtener la cotización cambiaria", e);
