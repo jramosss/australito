@@ -47,3 +47,9 @@ ORDER BY g.fecha_gasto DESC;
 -- 4. Eliminación de un registro equivocado (Delete)
 -- Borrado de un gasto mal ingresado asegurando la integridad
 DELETE FROM GASTOS WHERE id_gasto = 2;
+
+-- 5. Actualización de un registro existente (Update)
+-- Modificación de monto y descripción de una transacción con recálculo bimonetario
+UPDATE GASTOS 
+SET monto_ars = 28000.00, monto_usd = 20.74, descripcion = 'Compra Coto Semanal - Ajuste ticket' 
+WHERE id_gasto = 1;
